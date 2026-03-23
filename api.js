@@ -43,9 +43,16 @@ mongoose
   .catch((err) => console.error("MongoDB connection error:", err));
 
 
-const userroutes = require('./routes')
-app.use(userroutes);
+// const userroutes = require('./routes')
+// app.use(userroutes);
 
+const userroutes = require("../routes"); // ⚠️ path change if needed
+app.use("/", userroutes);
+
+// Test route
+app.get("/", (req, res) => {
+  res.send("Backend Working ✅");
+});
 
 
 app.listen(PORT, () => {
