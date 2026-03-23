@@ -5,6 +5,9 @@ const router = express.Router();
 const OrderMaster = require("./ordermodel")
 const {TableMaster,ItemMaster} = require("./model")
 
+router.get("/", (req, res) => {
+  res.send("Hello, World!");
+});
 // ✅ CREATE Item
 router.post("/Itemcreate", async (req, res) => {
   try {
