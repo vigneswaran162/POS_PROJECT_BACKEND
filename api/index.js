@@ -47,7 +47,7 @@ mongoose
 // const userroutes = require('./routes')
 // app.use(userroutes);
 
-const userroutes = require("./routes"); 
+const userroutes = require("../routes"); 
 app.use("/api", userroutes);
 
 // Test route
