@@ -1,5 +1,6 @@
 const express = require("express");
 const bodyParser = require('body-parser')
+const serverless = require("serverless-http");
 const app = express()
 const cors = require('cors');
 const mongoose = require("mongoose");
@@ -54,9 +55,9 @@ app.get("/", (req, res) => {
   res.send("Backend Working ✅");
 });
 
-
-    app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
-      });
+module.exports = serverless(app);
+    // app.listen(PORT, () => {
+    //     console.log(`Server is running on port ${PORT}`);
+    //   });
 
 // ✅
