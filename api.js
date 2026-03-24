@@ -46,7 +46,7 @@ mongoose
 // const userroutes = require('./routes')
 // app.use(userroutes);
 
-const userroutes = require("../routes"); // ⚠️ path change if needed
+const userroutes = require("./routes"); // ⚠️ path change if needed
 app.use("/", userroutes);
 
 // Test route
@@ -55,7 +55,8 @@ app.get("/", (req, res) => {
 });
 
 
-    // app.listen(PORT, () => {
-    //     console.log(`Server is running on port ${PORT}`);
-    //   });
-module.exports = app;
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+      });
+
+// ✅
