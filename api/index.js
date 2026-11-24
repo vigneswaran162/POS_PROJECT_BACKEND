@@ -1,5 +1,4 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
@@ -7,53 +6,52 @@ require("dotenv").config();
 const app = express();
 
 // Middleware
-app.use(bodyParser.urlencoded({
-  limit: "50mb",
-  extended: true,
-  parameterLimit: 50000
-}));
-
-app.use(bodyParser.json({ limit: "50mb" }));
-app.use(express.json());
 app.use(cors());
+app.use(express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }));
+app.use(express.json({ limit: "50mb" }));
 
-// PORT
-const PORT = process.env.PORT || 4000;
+// Cached DB connection (reused across serverless invocations)
+let cached = global._mongoose;
+if (!cached) cached = global._mongoose = { conn: null, promise: null };
 
-// Routes
-const userroutes = require("../routes");
-app.use("/api", userroutes);
-
-// Test route
-app.get("/", (req, res) => {
-  res.send("Backend Working ✅");
-});
-
-// ✅ Proper DB + Server start
-async function startServer() {
-  try {
-    const mongoURI = process.env.MONGO_URI;
-
-    if (!mongoURI) {
-      console.error("❌ MongoDB connection string is missing!");
-      process.exit(1);
-    }
-
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-
-    console.log("✅ MongoDB connected successfully");
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-    });
-
-  } catch (err) {
-    console.error("❌ MongoDB connection error:", err);
-    process.exit(1);
+async function connectDB() {
+  if (cached.conn) return cached.conn;
+  if (!process.env.MONGO_URI) throw new Error("MONGO_URI is missing");
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(process.env.MONGO_URI, { bufferCommands: false })
+      .then((m) => m);
   }
+  try {
+    cached.conn = await cached.promise;
+  } catch (err) {
+    cached.promise = null;
+    throw err;
+  }
+  return cached.conn;
 }
 
-startServer();
+// Ensure DB is connected before handling any request
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err.message);
+    res.status(500).json({ error: "Database connection failed" });
+  }
+});
+
+// Routes
+app.use("/api", require("../routes"));
+
+app.get("/", (req, res) => res.send("Backend Working ✅"));
+
+// Local development only
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+}
+
+// Export for Vercel serverless
+module.exports = app;
