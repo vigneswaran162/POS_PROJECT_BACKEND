@@ -1,5 +1,5 @@
 const express = require("express");
-const mongose = require("mongoose");
+const mongoose = require("mongoose");
 const router = express.Router();
 
 const OrderMaster = require("./ordermodel")
@@ -368,6 +368,83 @@ router.get("/sales-report", async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Item-wise sales report
+// GET /ItemWiseSalesReport?fromDate=2025-12-01&toDate=2025-12-31&OrderType=Dine-In&OrderStatus=Completed&ItemName=pizza
+router.get("/ItemWiseSalesReport", async (req, res) => {
+  try {
+    const { fromDate, toDate, OrderType, OrderStatus, ItemName } = req.query;
+
+    const match = {};
+
+    if (fromDate || toDate) {
+      match.OrderDate = {};
+      if (fromDate) match.OrderDate.$gte = new Date(fromDate);
+      if (toDate) {
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999); // include the full end day
+        match.OrderDate.$lte = to;
+      }
+    }
+    if (OrderType) match.OrderType = OrderType;
+    if (OrderStatus) match.OrderStatus = OrderStatus;
+
+    const detailMatch = {};
+    if (ItemName) {
+      detailMatch["OrderDetails.ItemName"] = { $regex: ItemName, $options: "i" };
+    }
+
+    const items = await OrderMaster.aggregate([
+      ...(Object.keys(match).length ? [{ $match: match }] : []),
+      { $unwind: "$OrderDetails" },
+      ...(Object.keys(detailMatch).length ? [{ $match: detailMatch }] : []),
+      {
+        $group: {
+          _id: {
+            ItemCode: "$OrderDetails.ItemCode",
+            ItemName: "$OrderDetails.ItemName"
+          },
+          TotalQty: { $sum: "$OrderDetails.Qty" },
+          GrossAmount: { $sum: "$OrderDetails.Amount" },
+          DiscountAmount: { $sum: "$OrderDetails.Discount" },
+          TaxAmount: { $sum: "$OrderDetails.TaxAmount" },
+          NetAmount: { $sum: "$OrderDetails.TotalAmount" },
+          OrderIds: { $addToSet: "$_id" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          ItemCode: "$_id.ItemCode",
+          ItemName: "$_id.ItemName",
+          TotalQty: 1,
+          GrossAmount: 1,
+          DiscountAmount: 1,
+          TaxAmount: 1,
+          NetAmount: 1,
+          OrderCount: { $size: "$OrderIds" }
+        }
+      },
+      { $sort: { NetAmount: -1 } }
+    ]);
+
+    const summary = items.reduce(
+      (s, i) => ({
+        TotalItems: s.TotalItems + 1,
+        TotalQty: s.TotalQty + (i.TotalQty || 0),
+        GrossAmount: s.GrossAmount + (i.GrossAmount || 0),
+        DiscountAmount: s.DiscountAmount + (i.DiscountAmount || 0),
+        TaxAmount: s.TaxAmount + (i.TaxAmount || 0),
+        NetAmount: s.NetAmount + (i.NetAmount || 0)
+      }),
+      { TotalItems: 0, TotalQty: 0, GrossAmount: 0, DiscountAmount: 0, TaxAmount: 0, NetAmount: 0 }
+    );
+
+    res.status(200).json({ items, summary });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
